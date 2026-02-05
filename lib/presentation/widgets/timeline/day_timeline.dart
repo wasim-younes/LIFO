@@ -52,7 +52,8 @@ class DayTimeline extends ConsumerWidget {
           if (allDayEvents.isNotEmpty)
             Padding(
               padding: const EdgeInsets.all(16),
-              child: _buildAllDaySection(allDayEvents, context, isSmallScreen),
+              child: _buildAllDaySection(
+                  allDayEvents, context, isSmallScreen, ref),
             ),
 
           // Timed events
@@ -66,11 +67,7 @@ class DayTimeline extends ConsumerWidget {
                   final event = timedEvents[index];
                   final isLast = index == timedEvents.length - 1;
                   return _buildTimelineEvent(
-                    event,
-                    context,
-                    isLast,
-                    isSmallScreen,
-                  );
+                      event, context, isLast, isSmallScreen, ref);
                 }),
               ),
             ),
@@ -176,6 +173,7 @@ class DayTimeline extends ConsumerWidget {
     BuildContext context,
     bool isLast,
     bool isSmallScreen,
+    WidgetRef ref,
   ) {
     // event.startDate is guaranteed not null here because we filtered
     final startTime = event.startDate!;
@@ -184,159 +182,203 @@ class DayTimeline extends ConsumerWidget {
     final hours = duration.inHours;
     final minutes = duration.inMinutes % 60;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: isSmallScreen ? 50 : 60,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}',
-                  style: TextStyle(
-                    fontSize: isSmallScreen ? 12 : 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                if (duration.inMinutes > 0 && !isSmallScreen)
+    return Dismissible(
+      key: Key('event_${event.id}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        color: Colors.red,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(
+          Icons.delete,
+          color: Colors.white,
+          size: 30,
+        ),
+      ),
+      confirmDismiss: (direction) async {
+        return await _showDeleteConfirmation(context, event);
+      },
+      onDismissed: (direction) async {
+        await _deleteEvent(context, ref, event);
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: isSmallScreen ? 50 : 60,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
                   Text(
-                    '${hours > 0 ? '${hours}h ' : ''}${minutes > 0 ? '${minutes}m' : ''}'
-                        .trim(),
+                    '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}',
                     style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey.shade500,
+                      fontSize: isSmallScreen ? 12 : 14,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-              ],
+                  if (duration.inMinutes > 0 && !isSmallScreen)
+                    Text(
+                      '${hours > 0 ? '${hours}h ' : ''}${minutes > 0 ? '${minutes}m' : ''}'
+                          .trim(),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 8 : 12),
-            child: Column(
-              children: [
-                Container(
-                  width: isSmallScreen ? 10 : 12,
-                  height: isSmallScreen ? 10 : 12,
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 8 : 12),
+              child: Column(
+                children: [
+                  Container(
+                    width: isSmallScreen ? 10 : 12,
+                    height: isSmallScreen ? 10 : 12,
+                    decoration: BoxDecoration(
+                      color: event.colorValue,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 2,
+                    height: isLast ? 0 : 100,
+                    color: event.colorValue.withOpacity(0.3),
+                    margin: EdgeInsets.only(
+                      top: 4,
+                      bottom: isLast ? 0 : 4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => _showEventDetails(event, context, ref),
+                child: Container(
                   decoration: BoxDecoration(
-                    color: event.colorValue,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white,
-                      width: 2,
-                    ),
-                  ),
-                ),
-                Container(
-                  width: 2,
-                  height: isLast ? 0 : 100,
-                  color: event.colorValue.withOpacity(0.3),
-                  margin: EdgeInsets.only(
-                    top: 4,
-                    bottom: isLast ? 0 : 4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => _showEventDetails(event, context),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
-                      blurRadius: 10,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: isSmallScreen ? 6 : 8,
-                              vertical: isSmallScreen ? 3 : 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: event.colorValue.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              _getShortType(event.scheduleType),
-                              style: TextStyle(
-                                fontSize: isSmallScreen ? 8 : 10,
-                                fontWeight: FontWeight.w600,
-                                color: event.colorValue,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                          const Spacer(),
-                          if (event.endDate != null && !isSmallScreen)
-                            Text(
-                              '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}',
-                              style: TextStyle(
-                                fontSize: isSmallScreen ? 10 : 12,
-                                color: Colors.grey.shade500,
-                              ),
-                            ),
-                        ],
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.1),
+                        blurRadius: 10,
+                        spreadRadius: 1,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        event.title,
-                        style: TextStyle(
-                          fontSize: isSmallScreen ? 14 : 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (event.description != null && !isSmallScreen)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            event.description!,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey.shade600,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      if (!isSmallScreen)
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Icon(
-                            _getScheduleIcon(event.scheduleType),
-                            color: event.colorValue.withOpacity(0.7),
-                            size: 20,
-                          ),
-                        ),
                     ],
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isSmallScreen ? 6 : 8,
+                                vertical: isSmallScreen ? 3 : 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: event.colorValue.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                _getShortType(event.scheduleType),
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 8 : 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: event.colorValue,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            if (event.endDate != null && !isSmallScreen)
+                              Text(
+                                '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}',
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 10 : 12,
+                                  color: Colors.grey.shade500,
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          event.title,
+                          style: TextStyle(
+                            fontSize: isSmallScreen ? 14 : 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (event.description != null && !isSmallScreen)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              event.description!,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey.shade600,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        if (!isSmallScreen)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Icon(
+                              _getScheduleIcon(event.scheduleType),
+                              color: event.colorValue.withOpacity(0.7),
+                              size: 20,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  void _showEventDetails(Schedule event, BuildContext context) {
+// Delete confirmation dialog
+  Future<bool> _showDeleteConfirmation(
+      BuildContext context, Schedule event) async {
+    return await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Delete Event'),
+            content: Text('Delete "${event.title}"?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  void _showEventDetails(Schedule event, BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -399,6 +441,16 @@ class DayTimeline extends ConsumerWidget {
                                 color: event.colorValue,
                                 letterSpacing: 1,
                               ),
+                            ),
+                            const Spacer(),
+                            // DELETE BUTTON
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () {
+                                Navigator.pop(context); // Close details
+                                _showDeleteDialog(context, ref, event);
+                              },
+                              tooltip: 'Delete event',
                             ),
                           ],
                         ),
@@ -494,6 +546,7 @@ class DayTimeline extends ConsumerWidget {
                           child: ElevatedButton(
                             onPressed: () {
                               Navigator.pop(context);
+                              // TODO: Edit functionality
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: event.colorValue,
@@ -515,6 +568,80 @@ class DayTimeline extends ConsumerWidget {
         );
       },
     );
+  }
+
+// Add delete confirmation dialog
+  void _showDeleteDialog(BuildContext context, WidgetRef ref, Schedule event) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Event'),
+        content: Text('Are you sure you want to delete "${event.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context); // Close dialog
+              await _deleteEvent(context, ref, event);
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+// Delete event function
+  Future<void> _deleteEvent(
+      BuildContext context, WidgetRef ref, Schedule event) async {
+    try {
+      if (event.id == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cannot delete event without ID'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Get the notifier
+      final notifier = ref.read(scheduleNotifierProvider.notifier);
+
+      // Show loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Deleting event...'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+
+      // Delete the event
+      await notifier.deleteSchedule(event.id!);
+
+      // Show success
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('"${event.title}" deleted successfully'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   String _getShortType(String type) {
@@ -567,6 +694,7 @@ class DayTimeline extends ConsumerWidget {
     Schedule event,
     BuildContext context,
     bool isSmallScreen,
+    WidgetRef ref,
   ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -613,7 +741,7 @@ class DayTimeline extends ConsumerWidget {
           color: event.colorValue,
           size: isSmallScreen ? 18 : 20,
         ),
-        onTap: () => _showEventDetails(event, context),
+        onTap: () => _showEventDetails(event, context, ref),
       ),
     );
   }
@@ -654,11 +782,8 @@ class DayTimeline extends ConsumerWidget {
     );
   }
 
-  Widget _buildAllDaySection(
-    List<Schedule> events,
-    BuildContext context,
-    bool isSmallScreen,
-  ) {
+  Widget _buildAllDaySection(List<Schedule> events, BuildContext context,
+      bool isSmallScreen, WidgetRef ref) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -674,8 +799,8 @@ class DayTimeline extends ConsumerWidget {
             ),
           ),
         ),
-        ...events
-            .map((event) => _buildAllDayEvent(event, context, isSmallScreen)),
+        ...events.map(
+            (event) => _buildAllDayEvent(event, context, isSmallScreen, ref)),
       ],
     );
   }

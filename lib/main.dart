@@ -37,7 +37,7 @@ void main() async {
 
   // 3. OPTIONAL: Reset database for development
   // Uncomment the next line if you want to reset the database on every start
-  // await resetDatabase();
+  //await resetDatabase();
 
   print('🚀 Starting Calendar App...');
 

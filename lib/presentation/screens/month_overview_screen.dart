@@ -169,11 +169,7 @@ class MonthOverviewScreen extends ConsumerWidget {
                 ...days.map((day) {
                   final daySchedules = schedulesByDay[day]!;
                   return _buildDaySection(
-                    day,
-                    daySchedules,
-                    context,
-                    month,
-                  );
+                      day, daySchedules, context, month, ref);
                 }),
 
                 const SizedBox(height: 80),
@@ -261,6 +257,7 @@ class MonthOverviewScreen extends ConsumerWidget {
     List<Schedule> schedules,
     BuildContext context,
     DateTime month,
+    WidgetRef ref,
   ) {
     schedules.sort((a, b) => a.startDate!.compareTo(b.startDate!));
 
@@ -350,7 +347,7 @@ class MonthOverviewScreen extends ConsumerWidget {
 
                 // Schedule previews
                 ...schedules.take(2).map((schedule) {
-                  return _buildSchedulePreview(schedule, context);
+                  return _buildSchedulePreview(schedule, context, ref);
                 }),
 
                 // More indicator
@@ -378,7 +375,8 @@ class MonthOverviewScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSchedulePreview(Schedule schedule, BuildContext context) {
+  Widget _buildSchedulePreview(
+      Schedule schedule, BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
@@ -454,6 +452,45 @@ class MonthOverviewScreen extends ConsumerWidget {
                 ),
               ],
             ),
+          ),
+          // DELETE BUTTON
+          IconButton(
+            icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+            onPressed: () => _showDeleteDialog(context, ref, schedule),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteDialog(
+      BuildContext context, WidgetRef ref, Schedule schedule) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Event'),
+        content: Text('Delete "${schedule.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              if (schedule.id != null) {
+                final notifier = ref.read(scheduleNotifierProvider.notifier);
+                await notifier.deleteSchedule(schedule.id!);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('"${schedule.title}" deleted'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
           ),
         ],
       ),
