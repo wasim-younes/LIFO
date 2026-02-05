@@ -1,4 +1,4 @@
-package com.example.lifo
+package com.example.life_organizer_app
 
 import io.flutter.embedding.android.FlutterActivity
 

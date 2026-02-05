@@ -1,0 +1,15 @@
+targets:
+  $default:
+    builders:
+      drift_dev|drift_dev:
+        enabled: true
+        options:
+          # Remove or fix case_from_dart_to_sql
+          case_from_dart_to_sql: snake_case  # or 'camelCase' or 'preserve'
+          
+          # Other options (optional)
+          sql:
+            dialect: sqlite
+          
+          named_parameters: true
+          named_parameters_always_required: true
