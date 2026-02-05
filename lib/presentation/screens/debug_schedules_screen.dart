@@ -88,65 +88,30 @@ class DebugSchedulesScreen extends ConsumerWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: schedule.colorValue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    schedule.scheduleType.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: schedule.colorValue,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                if (isUnscheduled)
-                  Container(
-                    margin: const EdgeInsets.only(left: 8),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      'UNSCHEDULED',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 4),
+            // Safe Date Formatting
             if (schedule.startDate != null)
-              Text('Date: ${_formatDate(schedule.startDate!)}'),
-            if (isUnscheduled && schedule.unscheduledYear != null)
+              Text('Date: ${_formatDate(schedule.startDate!)}')
+            else if (isUnscheduled && schedule.unscheduledYear != null)
               Text(
-                schedule.unscheduledMonth != null
-                    ? 'Monthly: ${schedule.unscheduledMonth}/${schedule.unscheduledYear}'
-                    : 'Yearly: ${schedule.unscheduledYear}',
-              ),
-            if (schedule.description != null) Text('${schedule.description}'),
-            Text('ID: ${schedule.id ?? "No ID"}'),
+                  'Unscheduled: ${schedule.unscheduledMonth ?? "All"}/${schedule.unscheduledYear}')
+            else
+              const Text('No date set'),
+
+            Text('ID: ${schedule.id ?? "Pending..."}'), // Safe ID access
           ],
         ),
-        trailing: schedule.id != null
-            ? IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: () {
-                  _showDeleteDialog(context, ref, schedule.id!);
-                },
-              )
-            : null,
+        trailing: IconButton(
+          icon: const Icon(Icons.delete, color: Colors.red),
+          onPressed: () {
+            // SAFE: Check if ID exists before calling delete
+            final scheduleId = schedule.id;
+            if (scheduleId != null) {
+              _showDeleteDialog(context, ref, scheduleId);
+            } else {
+              print("Debug: Cannot delete an item with no ID.");
+            }
+          },
+        ),
       ),
     );
   }

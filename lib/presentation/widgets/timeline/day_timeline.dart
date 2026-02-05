@@ -10,84 +10,71 @@ class DayTimeline extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final schedulesAsync = ref.watch(schedulesForDateProvider(date));
+    // realTimeSchedulesForDateProvider returns List<Schedule> directly
+    final schedules = ref.watch(realTimeSchedulesForDateProvider(date));
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 400;
 
-    return schedulesAsync.when(
-      data: (schedules) {
-        if (schedules.isEmpty) {
-          return _buildEmptyState();
-        }
+    // Debug info
+    print('📅 DayTimeline: ${schedules.length} schedules for $date');
 
-        // Separate scheduled and unscheduled events
-        final scheduledEvents =
-            schedules.where((s) => s.startDate != null).toList();
-        final unscheduledEvents =
-            schedules.where((s) => s.startDate == null).toList();
+    if (schedules.isEmpty) {
+      return _buildEmptyState();
+    }
 
-        // Sort only scheduled events by time
-        scheduledEvents.sort((a, b) => a.startDate!.compareTo(b.startDate!));
+    // Separate scheduled and unscheduled events
+    final scheduledEvents =
+        schedules.where((s) => s.startDate != null).toList();
+    final unscheduledEvents =
+        schedules.where((s) => s.startDate == null).toList();
 
-        final allDayEvents = scheduledEvents.where((s) => s.isAllDay).toList();
-        final timedEvents = scheduledEvents.where((s) => !s.isAllDay).toList();
+    // Sort only scheduled events by time
+    scheduledEvents.sort((a, b) => a.startDate!.compareTo(b.startDate!));
 
-        return SingleChildScrollView(
-          padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).padding.bottom + 80),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Unscheduled events at top
-              if (unscheduledEvents.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: _buildUnscheduledSection(
-                      unscheduledEvents, context, isSmallScreen),
-                ),
+    final allDayEvents = scheduledEvents.where((s) => s.isAllDay).toList();
+    final timedEvents = scheduledEvents.where((s) => !s.isAllDay).toList();
 
-              // All day events
-              if (allDayEvents.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child:
-                      _buildAllDaySection(allDayEvents, context, isSmallScreen),
-                ),
+    return SingleChildScrollView(
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 80),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Unscheduled events at top
+          if (unscheduledEvents.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: _buildUnscheduledSection(
+                  unscheduledEvents, context, isSmallScreen),
+            ),
 
-              // Timed events
-              if (timedEvents.isNotEmpty)
-                Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isSmallScreen ? 8 : 16,
-                  ),
-                  child: Column(
-                    children: List.generate(timedEvents.length, (index) {
-                      final event = timedEvents[index];
-                      final isLast = index == timedEvents.length - 1;
-                      return _buildTimelineEvent(
-                        event,
-                        context,
-                        isLast,
-                        isSmallScreen,
-                      );
-                    }),
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-      loading: () => const Center(
-        child: CircularProgressIndicator(),
-      ),
-      error: (error, stack) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            'Error: $error',
-            textAlign: TextAlign.center,
-          ),
-        ),
+          // All day events
+          if (allDayEvents.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: _buildAllDaySection(allDayEvents, context, isSmallScreen),
+            ),
+
+          // Timed events
+          if (timedEvents.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: isSmallScreen ? 8 : 16,
+              ),
+              child: Column(
+                children: List.generate(timedEvents.length, (index) {
+                  final event = timedEvents[index];
+                  final isLast = index == timedEvents.length - 1;
+                  return _buildTimelineEvent(
+                    event,
+                    context,
+                    isLast,
+                    isSmallScreen,
+                  );
+                }),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -183,8 +170,6 @@ class DayTimeline extends ConsumerWidget {
       ),
     );
   }
-
-  // ... keep rest of _buildEmptyState, _buildAllDaySection, _buildAllDayEvent methods as they are ...
 
   Widget _buildTimelineEvent(
     Schedule event,
@@ -532,7 +517,6 @@ class DayTimeline extends ConsumerWidget {
     );
   }
 
-  // ... keep rest of the helper methods (_getShortType, _getScheduleIcon, _buildDetailItem, _getMonthName)
   String _getShortType(String type) {
     switch (type) {
       case 'meeting':
@@ -703,41 +687,40 @@ class DayTimeline extends ConsumerWidget {
     required Color color,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            icon,
-            color: color,
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              icon,
+              color: color,
+              size: 20,
             ),
-          ),
-        ],
-      ),
-    );
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ));
   }
 
   String _getMonthName(DateTime date) {

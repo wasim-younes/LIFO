@@ -6,9 +6,15 @@ class ScheduleRepository {
   final AppDatabase db;
 
   ScheduleRepository(this.db);
+
   // Create schedule (can be unscheduled)
   Future<int> createSchedule(Schedule schedule) async {
     try {
+      print('📝 Creating schedule: ${schedule.title}');
+      print('📝 isUnscheduled: ${schedule.isUnscheduled}');
+      print('📝 unscheduledYear: ${schedule.unscheduledYear}');
+      print('📝 unscheduledMonth: ${schedule.unscheduledMonth}');
+
       final id = await db.into(db.baseSchedule).insert(
             BaseScheduleCompanion.insert(
               title: schedule.title,
@@ -22,6 +28,7 @@ class ScheduleRepository {
               unscheduledMonth: Value(schedule.unscheduledMonth),
             ),
           );
+      print('✅ Schedule created with ID: $id');
       return id;
     } catch (e) {
       print('❌ Error creating schedule: $e');
@@ -29,6 +36,7 @@ class ScheduleRepository {
     }
   }
 
+  // Update schedule
   Future<void> updateSchedule(Schedule schedule) async {
     try {
       if (schedule.id == null) {
@@ -49,7 +57,7 @@ class ScheduleRepository {
         unscheduledMonth: Value(schedule.unscheduledMonth),
       ));
 
-      print('✅ Schedule ${schedule.id} updated in database');
+      print('✅ Schedule updated: ${schedule.id}');
     } catch (e) {
       print('❌ Error updating schedule: $e');
       rethrow;
@@ -63,11 +71,11 @@ class ScheduleRepository {
       final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
       final schedules = await (db.select(db.baseSchedule)
-            ..where((t) => t.startDate.isNotNull())
             ..where((t) => t.startDate.isBetweenValues(startOfDay, endOfDay))
             ..orderBy([(t) => OrderingTerm(expression: t.startDate)]))
           .get();
 
+      print('📅 Found ${schedules.length} schedules for $date');
       return schedules.map(Schedule.fromData).toList();
     } catch (e) {
       print('❌ Error getting schedules: $e');
@@ -85,6 +93,8 @@ class ScheduleRepository {
             ..orderBy([(t) => OrderingTerm(expression: t.title)]))
           .get();
 
+      print(
+          '📅 Found ${schedules.length} monthly unscheduled events for $month/$year');
       return schedules.map(Schedule.fromData).toList();
     } catch (e) {
       print('❌ Error getting monthly unscheduled: $e');
@@ -102,6 +112,7 @@ class ScheduleRepository {
             ..orderBy([(t) => OrderingTerm(expression: t.title)]))
           .get();
 
+      print('📅 Found ${schedules.length} yearly unscheduled events for $year');
       return schedules.map(Schedule.fromData).toList();
     } catch (e) {
       print('❌ Error getting yearly unscheduled: $e');
@@ -109,263 +120,202 @@ class ScheduleRepository {
     }
   }
 
-  // Get all schedules (for calendar overview)
+  // Get all schedules
   Future<List<Schedule>> getAllSchedules() async {
     try {
+      print('📋 Fetching all schedules from database...');
       final schedules = await db.select(db.baseSchedule).get();
-      return schedules.map(Schedule.fromData).toList();
+      print('📋 Database returned ${schedules.length} raw schedule records');
+
+      // Filter out any null schedules
+      final validSchedules = schedules.where((data) {
+        // Check required fields are not null
+        final isValid = data.title != null && data.scheduleType != null;
+
+        if (!isValid) {
+          print('⚠️ Skipping invalid schedule record: $data');
+        }
+
+        return isValid;
+      }).toList();
+
+      print('✅ Valid schedules: ${validSchedules.length}');
+      return validSchedules.map(Schedule.fromData).toList();
     } catch (e) {
-      print('❌ Error: $e');
+      print('❌ Error loading schedules: $e');
       return [];
     }
   }
 
+  // Delete schedule
   Future<void> deleteSchedule(int id) async {
     try {
       await (db.delete(db.baseSchedule)..where((t) => t.id.equals(id))).go();
+      print('✅ Schedule deleted: $id');
     } catch (e) {
       print('❌ Error deleting: $e');
       rethrow;
     }
   }
 
-  // ========== SHOPPING SCHEDULE OPERATIONS ==========
-
+  // Specialized operations (Shopping, Workout, etc.)
   Future<int> createShoppingSchedule(ShoppingSchedule shoppingSchedule) async {
     return await db.transaction(() async {
-      try {
-        // Create base schedule
-        final scheduleId = await createSchedule(shoppingSchedule.schedule);
-
-        // Create shopping details
-        await db.into(db.shoppingSchedule).insert(
-              ShoppingScheduleCompanion.insert(
-                id: scheduleId,
-                isOnline: Value(shoppingSchedule.isOnline),
-                storeName: shoppingSchedule.storeName,
-                storeType: shoppingSchedule.storeType,
-                location: Value(shoppingSchedule.location),
-                itemIds: Value(shoppingSchedule.itemIds?.join(',')),
-                itemQuantities:
-                    Value(shoppingSchedule.itemQuantities?.join(',')),
-                itemNotes: Value(shoppingSchedule.itemNotes),
-                budget: Value(shoppingSchedule.budget),
-                priority: Value(shoppingSchedule.priority),
-                notes: Value(shoppingSchedule.notes),
-              ),
-            );
-
-        return scheduleId;
-      } catch (e) {
-        print('❌ Error creating shopping schedule: $e');
-        rethrow;
-      }
+      final scheduleId = await createSchedule(shoppingSchedule.schedule);
+      await db.into(db.shoppingSchedule).insert(
+            ShoppingScheduleCompanion.insert(
+              id: scheduleId,
+              isOnline: Value(shoppingSchedule.isOnline),
+              storeName: shoppingSchedule.storeName,
+              storeType: shoppingSchedule.storeType,
+              location: Value(shoppingSchedule.location),
+              itemIds: Value(shoppingSchedule.itemIds?.join(',')),
+              itemQuantities: Value(shoppingSchedule.itemQuantities?.join(',')),
+              itemNotes: Value(shoppingSchedule.itemNotes),
+              budget: Value(shoppingSchedule.budget),
+              priority: Value(shoppingSchedule.priority),
+              notes: Value(shoppingSchedule.notes),
+            ),
+          );
+      return scheduleId;
     });
   }
 
   Future<List<ShoppingSchedule>> getShoppingSchedulesByDate(
       DateTime date) async {
-    try {
-      final startOfDay = DateTime(date.year, date.month, date.day);
-      final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
-      // Get base schedules that are shopping type
-      final baseSchedules = await (db.select(db.baseSchedule)
-            ..where((t) => t.scheduleType.equals('shopping'))
-            ..where((t) => t.startDate.isBetweenValues(startOfDay, endOfDay)))
-          .get();
+    final baseSchedules = await (db.select(db.baseSchedule)
+          ..where((t) => t.scheduleType.equals('shopping'))
+          ..where((t) => t.startDate.isBetweenValues(startOfDay, endOfDay)))
+        .get();
 
-      final result = <ShoppingSchedule>[];
+    final result = <ShoppingSchedule>[];
+    for (final base in baseSchedules) {
+      final details = await (db.select(db.shoppingSchedule)
+            ..where((t) => t.id.equals(base.id)))
+          .getSingleOrNull();
 
-      for (final base in baseSchedules) {
-        final details = await (db.select(db.shoppingSchedule)
-              ..where((t) => t.id.equals(base.id)))
-            .getSingleOrNull();
-
-        if (details != null) {
-          result.add(ShoppingSchedule(
-            schedule: Schedule.fromData(base),
-            isOnline: details.isOnline,
-            storeName: details.storeName,
-            storeType: details.storeType,
-            location: details.location,
-            itemIds: details.itemIds?.split(',').map(int.parse).toList(),
-            itemQuantities:
-                details.itemQuantities?.split(',').map(double.parse).toList(),
-            itemNotes: details.itemNotes,
-            budget: details.budget,
-            priority: details.priority,
-            notes: details.notes,
-          ));
-        }
+      if (details != null) {
+        result.add(ShoppingSchedule(
+          schedule: Schedule.fromData(base),
+          isOnline: details.isOnline,
+          storeName: details.storeName,
+          storeType: details.storeType,
+          location: details.location,
+          itemIds: details.itemIds?.split(',').map(int.parse).toList(),
+          itemQuantities:
+              details.itemQuantities?.split(',').map(double.parse).toList(),
+          itemNotes: details.itemNotes,
+          budget: details.budget,
+          priority: details.priority,
+          notes: details.notes,
+        ));
       }
-
-      return result;
-    } catch (e) {
-      print('❌ Error getting shopping schedules: $e');
-      return [];
     }
+    return result;
   }
 
-  // ========== WORKOUT SCHEDULE OPERATIONS ==========
-
+  // Workout Operations
   Future<int> createWorkoutSchedule(WorkoutSchedule workoutSchedule) async {
     return await db.transaction(() async {
-      try {
-        final scheduleId = await createSchedule(workoutSchedule.schedule);
-
-        await db.into(db.workoutSchedule).insert(
-              WorkoutScheduleCompanion.insert(
-                id: scheduleId,
-                workoutType: workoutSchedule.workoutType,
-                locationType: workoutSchedule.locationType,
-                durationMinutes: workoutSchedule.durationMinutes,
-                intensity: workoutSchedule.intensity,
-                exercises: Value(workoutSchedule.exercises),
-                distanceKm: Value(workoutSchedule.distanceKm),
-                caloriesBurned: Value(workoutSchedule.caloriesBurned),
-                equipment: Value(workoutSchedule.equipment),
-                notes: Value(workoutSchedule.notes),
-              ),
-            );
-
-        return scheduleId;
-      } catch (e) {
-        print('❌ Error creating workout schedule: $e');
-        rethrow;
-      }
+      final scheduleId = await createSchedule(workoutSchedule.schedule);
+      await db.into(db.workoutSchedule).insert(
+            WorkoutScheduleCompanion.insert(
+              id: scheduleId,
+              workoutType: workoutSchedule.workoutType,
+              locationType: workoutSchedule.locationType,
+              durationMinutes: workoutSchedule.durationMinutes,
+              intensity: workoutSchedule.intensity,
+              exercises: Value(workoutSchedule.exercises),
+              distanceKm: Value(workoutSchedule.distanceKm),
+              caloriesBurned: Value(workoutSchedule.caloriesBurned),
+              equipment: Value(workoutSchedule.equipment),
+              notes: Value(workoutSchedule.notes),
+            ),
+          );
+      return scheduleId;
     });
   }
 
   Future<List<WorkoutSchedule>> getWorkoutSchedulesByDate(DateTime date) async {
-    try {
-      final startOfDay = DateTime(date.year, date.month, date.day);
-      final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
-      final baseSchedules = await (db.select(db.baseSchedule)
-            ..where((t) => t.scheduleType.equals('workout'))
-            ..where((t) => t.startDate.isBetweenValues(startOfDay, endOfDay)))
-          .get();
+    final baseSchedules = await (db.select(db.baseSchedule)
+          ..where((t) => t.scheduleType.equals('workout'))
+          ..where((t) => t.startDate.isBetweenValues(startOfDay, endOfDay)))
+        .get();
 
-      final result = <WorkoutSchedule>[];
+    final result = <WorkoutSchedule>[];
+    for (final base in baseSchedules) {
+      final details = await (db.select(db.workoutSchedule)
+            ..where((t) => t.id.equals(base.id)))
+          .getSingleOrNull();
 
-      for (final base in baseSchedules) {
-        final details = await (db.select(db.workoutSchedule)
-              ..where((t) => t.id.equals(base.id)))
-            .getSingleOrNull();
-
-        if (details != null) {
-          result.add(WorkoutSchedule(
-            schedule: Schedule.fromData(base),
-            workoutType: details.workoutType,
-            locationType: details.locationType,
-            durationMinutes: details.durationMinutes,
-            intensity: details.intensity,
-            exercises: details.exercises,
-            distanceKm: details.distanceKm,
-            caloriesBurned: details.caloriesBurned,
-            equipment: details.equipment,
-            notes: details.notes,
-          ));
-        }
+      if (details != null) {
+        result.add(WorkoutSchedule(
+          schedule: Schedule.fromData(base),
+          workoutType: details.workoutType,
+          locationType: details.locationType,
+          durationMinutes: details.durationMinutes,
+          intensity: details.intensity,
+          exercises: details.exercises,
+          distanceKm: details.distanceKm,
+          caloriesBurned: details.caloriesBurned,
+          equipment: details.equipment,
+          notes: details.notes,
+        ));
       }
-
-      return result;
-    } catch (e) {
-      print('❌ Error getting workout schedules: $e');
-      return [];
     }
+    return result;
   }
 
-  // ========== MEETING SCHEDULE OPERATIONS ==========
-
+  // Create Meeting
   Future<int> createMeetingSchedule(MeetingSchedule meetingSchedule) async {
     return await db.transaction(() async {
-      try {
-        final scheduleId = await createSchedule(meetingSchedule.schedule);
-
-        await db.into(db.meetingSchedule).insert(
-              MeetingScheduleCompanion.insert(
-                id: scheduleId,
-                location: meetingSchedule.location,
-                attendees: meetingSchedule.attendees.join(','),
-                organizer: meetingSchedule.organizer,
-                agenda: Value(meetingSchedule.agenda),
-                meetingType: meetingSchedule.meetingType,
-                isVirtual: Value(meetingSchedule.isVirtual),
-                platform: Value(meetingSchedule.platform),
-                link: Value(meetingSchedule.link),
-                notes: Value(meetingSchedule.notes),
-                attachments: Value(meetingSchedule.attachments?.join(',')),
-              ),
-            );
-
-        return scheduleId;
-      } catch (e) {
-        print('❌ Error creating meeting schedule: $e');
-        rethrow;
-      }
+      final scheduleId = await createSchedule(meetingSchedule.schedule);
+      await db.into(db.meetingSchedule).insert(
+            MeetingScheduleCompanion.insert(
+              id: scheduleId,
+              location: meetingSchedule.location,
+              attendees: meetingSchedule.attendees.join(','),
+              organizer: meetingSchedule.organizer,
+              agenda: Value(meetingSchedule.agenda),
+              meetingType: meetingSchedule.meetingType,
+              isVirtual: Value(meetingSchedule.isVirtual),
+              platform: Value(meetingSchedule.platform),
+              link: Value(meetingSchedule.link),
+              notes: Value(meetingSchedule.notes),
+              attachments: Value(meetingSchedule.attachments?.join(',')),
+            ),
+          );
+      return scheduleId;
     });
   }
 
-  // ========== MEAL SCHEDULE OPERATIONS ==========
-
+  // Create Meal
   Future<int> createMealSchedule(MealSchedule mealSchedule) async {
     return await db.transaction(() async {
-      try {
-        final scheduleId = await createSchedule(mealSchedule.schedule);
-
-        await db.into(db.mealSchedule).insert(
-              MealScheduleCompanion.insert(
-                id: scheduleId,
-                mealType: mealSchedule.mealType,
-                cuisine: Value(mealSchedule.cuisine),
-                location: Value(mealSchedule.location),
-                restaurantName: Value(mealSchedule.restaurantName),
-                dietType: Value(mealSchedule.dietType),
-                menuItems: Value(mealSchedule.menuItems?.join(',')),
-                numberOfPeople: Value(mealSchedule.numberOfPeople),
-                estimatedCost: Value(mealSchedule.estimatedCost),
-                isDelivery: Value(mealSchedule.isDelivery),
-                specialRequests: Value(mealSchedule.specialRequests),
-                notes: Value(mealSchedule.notes),
-              ),
-            );
-
-        return scheduleId;
-      } catch (e) {
-        print('❌ Error creating meal schedule: $e');
-        rethrow;
-      }
-    });
-  }
-
-  // ========== HELPER METHODS ==========
-
-  Future<void> deleteScheduleWithDetails(int id, String scheduleType) async {
-    await db.transaction(() async {
-      // Delete from specific table first
-      switch (scheduleType) {
-        case 'shopping':
-          await (db.delete(db.shoppingSchedule)..where((t) => t.id.equals(id)))
-              .go();
-          break;
-        case 'workout':
-          await (db.delete(db.workoutSchedule)..where((t) => t.id.equals(id)))
-              .go();
-          break;
-        case 'meeting':
-          await (db.delete(db.meetingSchedule)..where((t) => t.id.equals(id)))
-              .go();
-          break;
-        case 'meal':
-          await (db.delete(db.mealSchedule)..where((t) => t.id.equals(id)))
-              .go();
-          break;
-      }
-
-      // Then delete from base schedule
-      await deleteSchedule(id);
+      final scheduleId = await createSchedule(mealSchedule.schedule);
+      await db.into(db.mealSchedule).insert(
+            MealScheduleCompanion.insert(
+              id: scheduleId,
+              mealType: mealSchedule.mealType,
+              cuisine: Value(mealSchedule.cuisine),
+              location: Value(mealSchedule.location),
+              restaurantName: Value(mealSchedule.restaurantName),
+              dietType: Value(mealSchedule.dietType),
+              menuItems: Value(mealSchedule.menuItems?.join(',')),
+              numberOfPeople: Value(mealSchedule.numberOfPeople),
+              estimatedCost: Value(mealSchedule.estimatedCost),
+              isDelivery: Value(mealSchedule.isDelivery),
+              specialRequests: Value(mealSchedule.specialRequests),
+              notes: Value(mealSchedule.notes),
+            ),
+          );
+      return scheduleId;
     });
   }
 }

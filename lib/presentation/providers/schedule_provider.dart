@@ -2,123 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:life_organizer_app/data/models/schedule.dart';
 import 'package:life_organizer_app/data/repositories/schedule_repository.dart';
+import 'package:life_organizer_app/presentation/providers/app_providers.dart';
 
-// Schedule repository provider
-final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
-  throw UnimplementedError('ScheduleRepository must be provided');
-});
-
-// All schedules provider (auto-dispose)
-final allSchedulesProvider =
-    FutureProvider.autoDispose<List<Schedule>>((ref) async {
-  final repository = ref.watch(scheduleRepositoryProvider);
-  try {
-    return await repository.getAllSchedules();
-  } catch (e) {
-    print('❌ Error loading all schedules: $e');
-    rethrow;
-  }
-});
-
-// Schedules for specific date provider (auto-dispose)
-final schedulesForDateProvider = FutureProvider.autoDispose
-    .family<List<Schedule>, DateTime>((ref, date) async {
-  final repository = ref.watch(scheduleRepositoryProvider);
-  try {
-    return await repository.getSchedulesByDate(date);
-  } catch (e) {
-    print('❌ Error loading schedules for date $date: $e');
-    return [];
-  }
-});
-
-// Monthly unscheduled events provider
-final monthlyUnscheduledProvider = FutureProvider.autoDispose
-    .family<List<Schedule>, DateTime>((ref, date) async {
-  final repository = ref.watch(scheduleRepositoryProvider);
-  try {
-    return await repository.getMonthlyUnscheduled(date.year, date.month);
-  } catch (e) {
-    print('❌ Error loading monthly unscheduled: $e');
-    return [];
-  }
-});
-
-// Yearly unscheduled events provider
-final yearlyUnscheduledProvider =
-    FutureProvider.autoDispose.family<List<Schedule>, int>((ref, year) async {
-  final repository = ref.watch(scheduleRepositoryProvider);
-  try {
-    return await repository.getYearlyUnscheduled(year);
-  } catch (e) {
-    print('❌ Error loading yearly unscheduled: $e');
-    return [];
-  }
-});
-
-// Schedule types
-final scheduleTypesProvider = Provider<List<String>>((ref) {
-  return [
-    'meeting',
-    'workout',
-    'shopping',
-    'meal',
-    'personal',
-    'lecture',
-    'entertainment',
-    'travel',
-  ];
-});
-
-// Schedule operations
-final scheduleOperationsProvider = Provider<ScheduleOperations>((ref) {
-  final repository = ref.watch(scheduleRepositoryProvider);
-  return ScheduleOperations(repository);
-});
-
-class ScheduleOperations {
-  final ScheduleRepository _repository;
-
-  ScheduleOperations(this._repository);
-
-  Future<int> createSchedule(Schedule schedule) async {
-    try {
-      final id = await _repository.createSchedule(schedule);
-      print('✅ Schedule created with ID: $id');
-      return id;
-    } catch (e) {
-      print('❌ Error creating schedule: $e');
-      rethrow;
-    }
-  }
-
-  Future<void> updateSchedule(Schedule schedule) async {
-    try {
-      await _repository.updateSchedule(schedule);
-      print('✅ Schedule updated: ${schedule.id}');
-    } catch (e) {
-      print('❌ Error updating schedule: $e');
-      rethrow;
-    }
-  }
-
-  Future<void> deleteSchedule(int id) async {
-    try {
-      await _repository.deleteSchedule(id);
-      print('✅ Schedule deleted: $id');
-    } catch (e) {
-      print('❌ Error deleting schedule: $e');
-      rethrow;
-    }
-  }
-}
-
-// Schedule state notifier (for real-time updates)
-final scheduleNotifierProvider =
-    StateNotifierProvider<ScheduleNotifier, ScheduleState>(
-  (ref) => ScheduleNotifier(ref.read(scheduleRepositoryProvider)),
-);
-
+// The state for our schedules
 class ScheduleState {
   final List<Schedule> schedules;
   final bool isLoading;
@@ -143,6 +29,7 @@ class ScheduleState {
   }
 }
 
+// StateNotifier to manage the list of schedules
 class ScheduleNotifier extends StateNotifier<ScheduleState> {
   final ScheduleRepository _repository;
 
@@ -253,6 +140,7 @@ class ScheduleNotifier extends StateNotifier<ScheduleState> {
 
   // Refresh schedules from database
   Future<void> refresh() async {
+    print('🔄 Refreshing schedules...');
     await _loadSchedules();
   }
 
@@ -327,9 +215,128 @@ final realTimeSchedulesForDateProvider =
   final schedules = ref.watch(realTimeSchedulesProvider);
 
   return schedules.where((schedule) {
-    return schedule.startDate != null &&
-        schedule.startDate!.year == date.year &&
-        schedule.startDate!.month == date.month &&
-        schedule.startDate!.day == date.day;
+    final start = schedule.startDate;
+    if (start == null) return false;
+
+    return start.year == date.year &&
+        start.month == date.month &&
+        start.day == date.day;
   }).toList();
 });
+
+// Schedule repository provider
+final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
+  final db = ref.watch(databaseProvider);
+  return ScheduleRepository(db);
+});
+
+// Schedule notifier provider
+final scheduleNotifierProvider =
+    StateNotifierProvider<ScheduleNotifier, ScheduleState>(
+  (ref) => ScheduleNotifier(ref.read(scheduleRepositoryProvider)),
+);
+
+// All schedules provider (auto-dispose)
+final allSchedulesProvider =
+    FutureProvider.autoDispose<List<Schedule>>((ref) async {
+  final repository = ref.watch(scheduleRepositoryProvider);
+  try {
+    return await repository.getAllSchedules();
+  } catch (e) {
+    print('❌ Error loading all schedules: $e');
+    rethrow;
+  }
+});
+
+// Schedules for specific date provider (auto-dispose)
+final schedulesForDateProvider = FutureProvider.autoDispose
+    .family<List<Schedule>, DateTime>((ref, date) async {
+  final repository = ref.watch(scheduleRepositoryProvider);
+  try {
+    return await repository.getSchedulesByDate(date);
+  } catch (e) {
+    print('❌ Error loading schedules for date $date: $e');
+    return [];
+  }
+});
+
+// Monthly unscheduled events provider
+final monthlyUnscheduledProvider = FutureProvider.autoDispose
+    .family<List<Schedule>, DateTime>((ref, date) async {
+  final repository = ref.watch(scheduleRepositoryProvider);
+  try {
+    return await repository.getMonthlyUnscheduled(date.year, date.month);
+  } catch (e) {
+    print('❌ Error loading monthly unscheduled: $e');
+    return [];
+  }
+});
+
+// Yearly unscheduled events provider
+final yearlyUnscheduledProvider =
+    FutureProvider.autoDispose.family<List<Schedule>, int>((ref, year) async {
+  final repository = ref.watch(scheduleRepositoryProvider);
+  try {
+    return await repository.getYearlyUnscheduled(year);
+  } catch (e) {
+    print('❌ Error loading yearly unscheduled: $e');
+    return [];
+  }
+});
+
+// Schedule types
+final scheduleTypesProvider = Provider<List<String>>((ref) {
+  return [
+    'meeting',
+    'workout',
+    'shopping',
+    'meal',
+    'personal',
+    'lecture',
+    'entertainment',
+    'travel',
+  ];
+});
+
+// Schedule operations
+final scheduleOperationsProvider = Provider<ScheduleOperations>((ref) {
+  final repository = ref.watch(scheduleRepositoryProvider);
+  return ScheduleOperations(repository);
+});
+
+class ScheduleOperations {
+  final ScheduleRepository _repository;
+
+  ScheduleOperations(this._repository);
+
+  Future<int> createSchedule(Schedule schedule) async {
+    try {
+      final id = await _repository.createSchedule(schedule);
+      print('✅ Schedule created with ID: $id');
+      return id;
+    } catch (e) {
+      print('❌ Error creating schedule: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateSchedule(Schedule schedule) async {
+    try {
+      await _repository.updateSchedule(schedule);
+      print('✅ Schedule updated: ${schedule.id}');
+    } catch (e) {
+      print('❌ Error updating schedule: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteSchedule(int id) async {
+    try {
+      await _repository.deleteSchedule(id);
+      print('✅ Schedule deleted: $id');
+    } catch (e) {
+      print('❌ Error deleting schedule: $e');
+      rethrow;
+    }
+  }
+}

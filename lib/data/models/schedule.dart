@@ -52,15 +52,16 @@ class Schedule {
     );
   }
 
+  // FIXED: Safe factory constructor with null handling
   factory Schedule.fromData(dynamic data) {
     return Schedule(
       id: data.id,
-      title: data.title,
+      title: data.title ?? 'Untitled Event', // Handle null title
       startDate: data.startDate,
       endDate: data.endDate,
-      scheduleType: data.scheduleType,
+      scheduleType: data.scheduleType ?? 'meeting', // Handle null type
       description: data.description,
-      color: data.color,
+      color: data.color ?? '4280391411', // Default blue
       isUnscheduled: data.isUnscheduled ?? false,
       unscheduledYear: data.unscheduledYear,
       unscheduledMonth: data.unscheduledMonth,

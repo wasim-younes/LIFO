@@ -133,14 +133,54 @@ class _AddScheduleScreenState extends ConsumerState<AddScheduleScreen> {
 
   Widget _buildTypeSelector() {
     final types = [
-      {'value': 'meeting', 'label': 'Meeting', 'icon': Icons.people},
-      {'value': 'workout', 'label': 'Workout', 'icon': Icons.fitness_center},
-      {'value': 'shopping', 'label': 'Shopping', 'icon': Icons.shopping_cart},
-      {'value': 'meal', 'label': 'Meal', 'icon': Icons.restaurant},
-      {'value': 'personal', 'label': 'Personal', 'icon': Icons.person},
-      {'value': 'lecture', 'label': 'Lecture', 'icon': Icons.school},
-      {'value': 'entertainment', 'label': 'Entertainment', 'icon': Icons.movie},
-      {'value': 'travel', 'label': 'Travel', 'icon': Icons.flight},
+      {
+        'value': 'meeting',
+        'label': 'Meeting',
+        'icon': Icons.people,
+        'color': Colors.blue
+      },
+      {
+        'value': 'workout',
+        'label': 'Workout',
+        'icon': Icons.fitness_center,
+        'color': Colors.green
+      },
+      {
+        'value': 'shopping',
+        'label': 'Shopping',
+        'icon': Icons.shopping_cart,
+        'color': Colors.orange
+      },
+      {
+        'value': 'meal',
+        'label': 'Meal',
+        'icon': Icons.restaurant,
+        'color': Colors.red
+      },
+      {
+        'value': 'personal',
+        'label': 'Personal',
+        'icon': Icons.person,
+        'color': Colors.purple
+      },
+      {
+        'value': 'lecture',
+        'label': 'Lecture',
+        'icon': Icons.school,
+        'color': Colors.teal
+      },
+      {
+        'value': 'entertainment',
+        'label': 'Entertainment',
+        'icon': Icons.movie,
+        'color': Colors.pink
+      },
+      {
+        'value': 'travel',
+        'label': 'Travel',
+        'icon': Icons.flight,
+        'color': Colors.cyan
+      },
     ];
 
     return Column(
@@ -156,13 +196,21 @@ class _AddScheduleScreenState extends ConsumerState<AddScheduleScreen> {
           runSpacing: 8,
           children: types.map((type) {
             final isSelected = _selectedType == type['value'];
+            final iconColor =
+                isSelected ? Colors.white : type['color'] as Color;
+
             return ChoiceChip(
               label: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(type['icon'] as IconData, size: 18),
+                  Icon(type['icon'] as IconData, size: 18, color: iconColor),
                   const SizedBox(width: 4),
-                  Text(type['label'] as String),
+                  Text(
+                    type['label'] as String,
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : Colors.black,
+                    ),
+                  ),
                 ],
               ),
               selected: isSelected,
@@ -173,8 +221,20 @@ class _AddScheduleScreenState extends ConsumerState<AddScheduleScreen> {
                   });
                 }
               },
-              selectedColor: Colors.blue,
-              backgroundColor: Colors.grey.shade200,
+              selectedColor: type['color'] as Color,
+              backgroundColor: (type['color'] as Color).withOpacity(0.1),
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.white : Colors.black,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(
+                  color: isSelected
+                      ? type['color'] as Color
+                      : Colors.grey.shade300,
+                  width: isSelected ? 2 : 1,
+                ),
+              ),
             );
           }).toList(),
         ),
@@ -595,7 +655,6 @@ class _AddScheduleScreenState extends ConsumerState<AddScheduleScreen> {
     );
   }
 
-// COMPLETE SAVE FUNCTION - UPDATED FOR REAL PROVIDER
   void _saveEvent() async {
     // Validate required fields
     if (_titleController.text.isEmpty) {
@@ -695,13 +754,28 @@ class _AddScheduleScreenState extends ConsumerState<AddScheduleScreen> {
 
     // SAVE USING SCHEDULE NOTIFIER
     try {
-      await ref.read(scheduleNotifierOperationsProvider).addSchedule(schedule);
+      // Get the notifier
+      final notifier = ref.read(scheduleNotifierProvider.notifier);
+
+      // Add the schedule
+      await notifier.addSchedule(schedule);
 
       _showSuccess('✅ Event "${schedule.title}" saved successfully!');
 
-      // Close the screen after successful save
+      // IMPORTANT: Trigger a refresh of the providers
+      // This will make the UI update immediately
+      ref.invalidate(scheduleNotifierProvider);
+      ref.invalidate(allSchedulesProvider);
+
+      // If we're in a specific date context, refresh that too
+      if (schedule.startDate != null) {
+        ref.invalidate(schedulesForDateProvider(schedule.startDate!));
+        ref.invalidate(realTimeSchedulesForDateProvider(schedule.startDate!));
+      }
+
+      // Close the screen after successful save and return true to indicate success
       if (mounted) {
-        Navigator.pop(context);
+        Navigator.pop(context, true);
       }
     } catch (e) {
       _showError('❌ Failed to save event: $e');

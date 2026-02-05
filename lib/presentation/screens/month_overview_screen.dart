@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:life_organizer_app/data/models/schedule.dart';
 import 'package:life_organizer_app/presentation/providers/schedule_provider.dart';
+import 'package:life_organizer_app/presentation/screens/add_schedule_screen.dart';
 import 'package:life_organizer_app/presentation/screens/day_schedule_screen.dart';
 
 class MonthOverviewScreen extends ConsumerWidget {
@@ -195,7 +196,15 @@ class MonthOverviewScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // TODO: Add schedule
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AddScheduleScreen(
+                initialDate: month,
+              ),
+              fullscreenDialog: true,
+            ),
+          );
         },
         child: const Icon(Icons.add),
       ),

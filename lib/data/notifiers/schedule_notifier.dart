@@ -1,86 +1,67 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:life_organizer_app/data/models/schedule.dart';
-
-class ScheduleState {
-  final List<Schedule> schedules;
-  final bool isLoading;
-  final String? error;
-
-  const ScheduleState({
-    required this.schedules,
-    this.isLoading = false,
-    this.error,
-  });
-
-  ScheduleState copyWith({
-    List<Schedule>? schedules,
-    bool? isLoading,
-    String? error,
-  }) {
-    return ScheduleState(
-      schedules: schedules ?? this.schedules,
-      isLoading: isLoading ?? this.isLoading,
-      error: error ?? this.error,
-    );
-  }
-}
+import 'package:life_organizer_app/data/repositories/schedule_repository.dart';
+import 'package:life_organizer_app/presentation/providers/schedule_provider.dart';
 
 class ScheduleNotifier extends StateNotifier<ScheduleState> {
-  ScheduleNotifier()
+  final ScheduleRepository _repository;
+
+  ScheduleNotifier(this._repository)
       : super(
-          ScheduleState(
-            schedules: TestSchedules.getTestSchedulesForMonth(
-                DateTime.now().year, DateTime.now().month),
-          ),
-        );
+          const ScheduleState(schedules: []),
+        ) {
+    // Load initial data
+    _loadSchedules();
+  }
 
-  // Add a new schedule
-  Future<void> addSchedule(Schedule schedule) async {
+  Future<void> _loadSchedules() async {
+    state = state.copyWith(isLoading: true, error: null);
+
     try {
-      state = state.copyWith(isLoading: true);
-
-      // Simulate API/database delay
-      await Future.delayed(const Duration(milliseconds: 300));
-
-      // Create new schedule with ID (simulate database auto-increment)
-      final newSchedule = Schedule(
-        id: (state.schedules.length + 1000), // Generate unique ID
-        title: schedule.title,
-        startDate: schedule.startDate,
-        endDate: schedule.endDate,
-        scheduleType: schedule.scheduleType,
-        description: schedule.description,
-        color: schedule.color,
-        isUnscheduled: schedule.isUnscheduled,
-        unscheduledYear: schedule.unscheduledYear,
-        unscheduledMonth: schedule.unscheduledMonth,
+      final schedules = await _repository.getAllSchedules();
+      state = state.copyWith(
+        schedules: schedules,
+        isLoading: false,
       );
+      print('📅 Loaded ${schedules.length} schedules');
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Failed to load schedules: $e',
+      );
+      print('❌ Error loading schedules: $e');
+    }
+  }
 
-      // Add to state
+  Future<void> addSchedule(Schedule schedule) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      final id = await _repository.createSchedule(schedule);
+      final newSchedule = schedule.copyWith(id: id);
+
       final updatedSchedules = [...state.schedules, newSchedule];
       state = state.copyWith(
         schedules: updatedSchedules,
         isLoading: false,
       );
 
-      print('✅ Schedule added: ${newSchedule.title} (ID: ${newSchedule.id})');
-      print('📅 Total schedules: ${updatedSchedules.length}');
+      print('✅ Schedule added: ${newSchedule.title} (ID: $id)');
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
         error: 'Failed to add schedule: $e',
       );
       print('❌ Error adding schedule: $e');
+      rethrow;
     }
   }
 
-  // Update existing schedule
   Future<void> updateSchedule(Schedule schedule) async {
-    try {
-      state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: true, error: null);
 
-      await Future.delayed(const Duration(milliseconds: 300));
+    try {
+      await _repository.updateSchedule(schedule);
 
       final updatedSchedules = state.schedules.map((s) {
         if (s.id == schedule.id) {
@@ -100,15 +81,16 @@ class ScheduleNotifier extends StateNotifier<ScheduleState> {
         isLoading: false,
         error: 'Failed to update schedule: $e',
       );
+      print('❌ Error updating schedule: $e');
+      rethrow;
     }
   }
 
-  // Delete schedule
   Future<void> deleteSchedule(int scheduleId) async {
-    try {
-      state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: true, error: null);
 
-      await Future.delayed(const Duration(milliseconds: 300));
+    try {
+      await _repository.deleteSchedule(scheduleId);
 
       final updatedSchedules =
           state.schedules.where((s) => s.id != scheduleId).toList();
@@ -119,13 +101,20 @@ class ScheduleNotifier extends StateNotifier<ScheduleState> {
       );
 
       print('✅ Schedule deleted: ID $scheduleId');
-      print('📅 Total schedules: ${updatedSchedules.length}');
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
         error: 'Failed to delete schedule: $e',
       );
+      print('❌ Error deleting schedule: $e');
+      rethrow;
     }
+  }
+
+  // Refresh schedules from database
+  Future<void> refresh() async {
+    print('🔄 Refreshing schedules...');
+    await _loadSchedules();
   }
 
   // Get schedules for specific date
@@ -154,21 +143,5 @@ class ScheduleNotifier extends StateNotifier<ScheduleState> {
           schedule.unscheduledYear == year &&
           schedule.unscheduledMonth == null;
     }).toList();
-  }
-
-  // Clear all schedules (for testing)
-  void clearAllSchedules() {
-    state = state.copyWith(schedules: []);
-    print('🧹 All schedules cleared');
-  }
-
-  // Add test data
-  void addTestSchedules() {
-    final testSchedules = TestSchedules.getTestSchedulesForMonth(
-      DateTime.now().year,
-      DateTime.now().month,
-    );
-    state = state.copyWith(schedules: testSchedules);
-    print('🧪 Test schedules added: ${testSchedules.length} events');
   }
 }

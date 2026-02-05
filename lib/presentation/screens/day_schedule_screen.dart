@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:life_organizer_app/presentation/providers/calendar_provider.dart';
+import 'package:life_organizer_app/presentation/providers/schedule_provider.dart'; // ADD THIS IMPORT
 import 'package:life_organizer_app/presentation/widgets/timeline/day_timeline.dart';
+import 'package:life_organizer_app/presentation/screens/add_schedule_screen.dart';
 
 class DayScheduleScreen extends ConsumerWidget {
   final DateTime date;
@@ -13,6 +15,12 @@ class DayScheduleScreen extends ConsumerWidget {
     final isToday = _isToday(date);
     final screenHeight = MediaQuery.of(context).size.height;
     final isSmallScreen = screenHeight < 700;
+
+    // Listen for schedule changes - FIXED: Use schedulesForDateProvider instead
+    final schedulesAsync = ref.watch(schedulesForDateProvider(date));
+
+    // Debug: Show how many schedules we have
+    print('📅 DayScheduleScreen: Loading schedules for $date');
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(calendarNotifierProvider.notifier).selectDate(date);
@@ -39,28 +47,54 @@ class DayScheduleScreen extends ConsumerWidget {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: Icon(
-              Icons.add,
-              size: isSmallScreen ? 20 : 24,
-            ),
-            onPressed: () {
-              // TODO: Add schedule for this day
-            },
-          ),
-        ],
       ),
       body: SafeArea(
-        child: DayTimeline(date: date),
+        child: schedulesAsync.when(
+          data: (schedules) {
+            print('📅 DayScheduleScreen: ${schedules.length} schedules loaded');
+            return DayTimeline(date: date);
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, stack) => Center(child: Text('Error: $error')),
+        ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // TODO: Add schedule for this day
-        },
+        onPressed: () => _navigateToAddSchedule(context, ref),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
         child: const Icon(Icons.add),
       ),
     );
+  }
+
+  void _navigateToAddSchedule(BuildContext context, WidgetRef ref) async {
+    // Navigate and wait for result
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddScheduleScreen(
+          initialDate: date,
+        ),
+        fullscreenDialog: true,
+      ),
+    );
+
+    // If schedule was added successfully, refresh
+    if (result == true) {
+      // Invalidate the provider to force refresh
+      ref.invalidate(schedulesForDateProvider(date));
+      ref.invalidate(allSchedulesProvider);
+      ref.invalidate(scheduleNotifierProvider);
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Schedule added successfully!'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
   }
 
   bool _isToday(DateTime date) {
